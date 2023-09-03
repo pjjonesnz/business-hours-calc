@@ -55,6 +55,10 @@ public class BusinessHoursCalculator {
                                 shift.getEndTime()
                         );
 
+                        if(endDateTime.isAfter(shiftEnd)) {
+                            continue;
+                        }
+
                         if (endDateTime.isBefore(shiftStart)) {
                             endDateTime = shiftStart;
                         }
