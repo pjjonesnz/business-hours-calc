@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class BusinessHoursCalculatorTest {
 
@@ -141,5 +142,53 @@ public class BusinessHoursCalculatorTest {
         assertEquals(expected, calculator.addBusinessHours(start, duration));
     }
 
+    @Test
+    public void testAddBusinessHoursOverMultipleWeeks() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);  // It's a Monday
+        Duration duration = Duration.ofHours(80);  // This will span more than a week
 
+        LocalDateTime result = calculator.addBusinessHours(start, duration);
+
+        // Manually calculate the expected end time
+        // 40 hours for first week (Mon to Fri, 8 hours each), 40 hours for the second week
+        LocalDateTime expectedEnd = LocalDateTime.of(2023, 9, 15, 17, 0); // Should be a Monday of the next week
+        assertEquals(expectedEnd, result);
+    }
+
+    @Test
+    public void testAddBusinessHoursSpanningMultipleWeeksWithHolidays() {
+        // Add multiple holidays for the test
+        holidays.add(LocalDate.of(2023, 9, 11));
+        holidays.add(LocalDate.of(2023, 9, 15));
+        calculator = new BusinessHoursCalculator(businessDays, holidays);
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);  // It's a Monday
+        Duration duration = Duration.ofHours(80);  // 64 hours, enough to span multiple weeks
+        LocalDateTime expected = LocalDateTime.of(2023, 9, 19, 17, 0);  // Should land on a Thursday at 1PM, skipping weekends and holidays
+        assertEquals(expected, calculator.addBusinessHours(start, duration));
+    }
+
+    @Test
+    public void testAddBusinessHoursNegativeDuration() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);  // It's a Monday
+        Duration duration = Duration.ofHours(-1);  // Negative hours
+        assertThrows(IllegalArgumentException.class, () -> {
+            calculator.addBusinessHours(start, duration);
+        });
+    }
+
+    @Test
+    public void testAddBusinessHoursOnLeapYear() {
+        LocalDateTime start = LocalDateTime.of(2024, 2, 29, 8, 0);  // It's a Leap Year and it's Feb 29th
+        Duration duration = Duration.ofHours(8);  // 8 hours
+        LocalDateTime expected = LocalDateTime.of(2024, 2, 29, 17, 0);  // Should end on the same day at 5 PM
+        assertEquals(expected, calculator.addBusinessHours(start, duration));
+    }
+
+    @Test
+    public void testAddBusinessHoursOverMultipleDaysOnLeapYear() {
+        LocalDateTime start = LocalDateTime.of(2024, 2, 28, 8, 0);  // It's a Leap Year and it's Feb 29th
+        Duration duration = Duration.ofHours(24);  // 8 hours
+        LocalDateTime expected = LocalDateTime.of(2024, 3, 1, 17, 0);  // Should end on the same day at 5 PM
+        assertEquals(expected, calculator.addBusinessHours(start, duration));
+    }
 }
