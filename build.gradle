@@ -21,23 +21,20 @@ test {
 
 // Add the following to publish to GitHub Packages
 publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from components.java
-
-            groupId = project.group
-            artifactId = project.name
-            version = project.version
-        }
-    }
     repositories {
         maven {
             name = 'GitHubPackages'
-            url = uri("https://maven.pkg.github.com/pjjonesnz/busines-hours-calc")
+            url = uri("https://maven.pkg.github.com/pjjonesnz/business-hours-calc")
 
             credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")            }
+                username = project.findProperty("gpr.user") ?: System.getenv("USERNAME_GITHUB")
+                password = project.findProperty("gpr.token") ?: System.getenv("TOKEN_GITHUB")
+            }
+        }
+    }
+    publications {
+        gpr(MavenPublication) {
+            from(components.java)
         }
     }
 }
