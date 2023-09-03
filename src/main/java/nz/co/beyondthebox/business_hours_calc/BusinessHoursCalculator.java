@@ -5,14 +5,22 @@ import java.util.*;
 
 public class BusinessHoursCalculator {
     private final Map<DayOfWeek, BusinessDay> businessDays;
-    private final TreeSet<LocalDate> holidays;
+    private final Set<LocalDate> holidays;
+
+    public BusinessHoursCalculator(BusinessWeek businessWeek) {
+        this(businessWeek.getBusinessDays());
+    }
 
     public BusinessHoursCalculator(Map<DayOfWeek, BusinessDay> businessDays) {
         this.businessDays = businessDays;
         this.holidays = new TreeSet<>();
     }
 
-    public BusinessHoursCalculator(Map<DayOfWeek, BusinessDay> businessDays, TreeSet<LocalDate> holidays) {
+    public BusinessHoursCalculator(BusinessWeek businessWeek, Set<LocalDate> holidays) {
+        this(businessWeek.getBusinessDays(), holidays);
+    }
+
+    public BusinessHoursCalculator(Map<DayOfWeek, BusinessDay> businessDays, Set<LocalDate> holidays) {
         this.businessDays = businessDays;
         this.holidays = holidays;
     }
@@ -31,8 +39,9 @@ public class BusinessHoursCalculator {
         }
         LocalDateTime endDateTime = startDateTime;
         boolean firstDay = true;
+        boolean crossedMidnight = false;
         while (!duration.isZero()) {
-
+            crossedMidnight = false;
             // Check if the current day is a business day
             BusinessDay currentBusinessDay = businessDays.get(endDateTime.getDayOfWeek());
             if (currentBusinessDay != null && !isHoliday(endDateTime)) {
@@ -52,6 +61,7 @@ public class BusinessHoursCalculator {
                     firstDay = false;
                     // Calculate the duration within business hours for the final day
                     for (BusinessShift shift : currentBusinessDay.getShifts()) {
+
                         LocalDateTime shiftStart = LocalDateTime.of(
                                 endDateTime.toLocalDate(),
                                 shift.getStartTime()
@@ -60,6 +70,11 @@ public class BusinessHoursCalculator {
                                 endDateTime.toLocalDate(),
                                 shift.getEndTime()
                         );
+
+                        if (shift.getEndTime().isBefore(shift.getStartTime())) {
+                            shiftEnd = shiftEnd.plusDays(1);
+                            crossedMidnight = true;
+                        }
 
                         if(endDateTime.isAfter(shiftEnd)) {
                             continue;
@@ -88,8 +103,14 @@ public class BusinessHoursCalculator {
                 }
             }
 
-            endDateTime = endDateTime.plusDays(1)
-                    .with(LocalTime.of(0,0));
+            if (crossedMidnight) {
+                // Don't go back to midnight, start at the end time of the shift that crossed midnight
+                endDateTime = endDateTime.with(currentBusinessDay.getFinalShiftEndTime());
+                crossedMidnight = false;  // Reset the flag
+            } else {
+                // If no shifts crossed midnight, then reset the time to midnight
+                endDateTime = endDateTime.plusDays(1).with(LocalTime.of(0, 0));
+            }
         }
 
         return endDateTime;
@@ -107,7 +128,7 @@ public class BusinessHoursCalculator {
 
         LocalDateTime endDateTime = null;
         // Code to be benchmarked goes here
-        BusinessHoursCalculator calculator = new BusinessHoursCalculator(BusinessWeek.DEFAULT(), BusinessHolidays.DEFAULT());
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(BusinessWeekTemplate.DEFAULT(), BusinessHolidays.DEFAULT());
         for (int i = 0; i < iterations; i++) {
             LocalDateTime startDateTime = LocalDateTime.of(2023, 9, 1, 8, 5); // Example start date and time
             Duration duration = Duration.ofHours(320); // Example duration of 6 hours
@@ -129,14 +150,14 @@ public class BusinessHoursCalculator {
 }
 
 class BusinessDay {
-    private final List<BusinessShift> shifts;
+    private final List<BusinessShift> shifts = new ArrayList<>();
 
     private Duration businessDayLength = Duration.ZERO;
 
     public BusinessDay(BusinessShift... shifts) {
-        this.shifts = List.of(shifts);
+        this.shifts.addAll(List.of(shifts));
         for (BusinessShift shift : shifts) {
-            businessDayLength = businessDayLength.plus(Duration.between(shift.getStartTime(), shift.getEndTime()));
+            addShiftToBusinessDayLength(shift);
         }
     }
 
@@ -149,15 +170,33 @@ class BusinessDay {
     }
 
     public Duration getBusinessDayLength() {
+
         return businessDayLength;
+    }
+
+    private void addShiftToBusinessDayLength(BusinessShift shift) {
+        if (shift.getEndTime().isBefore(shift.getStartTime())) {
+            // For shifts that cross midnight, calculate the time duration across the day boundary
+            Duration beforeMidnight = Duration.between(shift.getStartTime(), LocalTime.of(23, 59, 59)).plusSeconds(1);
+            Duration afterMidnight = Duration.between(LocalTime.of(0, 0), shift.getEndTime());
+            businessDayLength = businessDayLength.plus(beforeMidnight).plus(afterMidnight);
+        } else {
+            // For regular shifts that don't cross midnight
+            businessDayLength = businessDayLength.plus(Duration.between(shift.getStartTime(), shift.getEndTime()));
+        }
     }
 
     public LocalTime getFinalShiftEndTime() {
         return shifts.get(shifts.size() - 1).getEndTime();
     }
+
+    public void addShift(BusinessShift shift) {
+        shifts.add(shift);
+        addShiftToBusinessDayLength(shift);
+    }
 }
 
-class BusinessWeek {
+class BusinessWeekTemplate {
     public static Map<DayOfWeek, BusinessDay> DEFAULT() {
         Map<DayOfWeek, BusinessDay> businessDays = new HashMap<>();
         // Define your business hours for each day of the week
@@ -212,4 +251,70 @@ class BusinessShift {
     }
 }
 
+class BusinessWeek {
+    private final Map<DayOfWeek, BusinessDay> businessDays;
+
+    public BusinessWeek() {
+        this.businessDays = new HashMap<>();
+    }
+
+    public BusinessWeek addDay(DayOfWeek dayOfWeek, BusinessDay businessDay) {
+        // TODO: days must be added in order for this to work - modify so they can be added in any order
+        // Here we can handle the logic to split shifts that span multiple days.
+        for (BusinessShift shift : businessDay.getShifts()) {
+            if (shift.getEndTime().isBefore(shift.getStartTime())) {
+                // This shift spans multiple days
+                // Split the shift into two: one ending at midnight and one starting at midnight.
+                BusinessShift firstShift = new BusinessShift(shift.getStartTime(), LocalTime.MIDNIGHT);
+                BusinessShift secondShift = new BusinessShift(LocalTime.MIDNIGHT, shift.getEndTime());
+
+                // Add the first part of the shift to the current day
+                addShiftToDay(dayOfWeek, firstShift);
+
+                // Add the second part of the shift to the next day
+                DayOfWeek nextDay = DayOfWeek.of((dayOfWeek.getValue() % 7) + 1);
+                addShiftToDay(nextDay, secondShift);
+            } else {
+                // This shift is within a single day
+                addShiftToDay(dayOfWeek, shift);
+            }
+        }
+        return this;
+    }
+
+    public BusinessWeek addShiftToDay(DayOfWeek dayOfWeek, BusinessShift shift) {
+        businessDays
+                .computeIfAbsent(dayOfWeek, k -> new BusinessDay())
+                .addShift(shift);
+        return this;
+    }
+
+    public Map<DayOfWeek, BusinessDay> getBusinessDays() {
+        return businessDays;
+    }
+
+    public BusinessWeek initialiseDefault() {
+        addDay(DayOfWeek.MONDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
+        ));
+        addDay(DayOfWeek.TUESDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
+        ));
+        addDay(DayOfWeek.WEDNESDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
+        ));
+        addDay(DayOfWeek.THURSDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
+        ));
+        addDay(DayOfWeek.FRIDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
+        ));
+        return this;
+    }
+}
 
