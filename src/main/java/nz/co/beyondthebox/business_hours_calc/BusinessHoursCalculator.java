@@ -23,6 +23,12 @@ public class BusinessHoursCalculator {
 
 
     public LocalDateTime addBusinessHours(LocalDateTime startDateTime, Duration duration, Duration minimumDurationPerDay) {
+        if(minimumDurationPerDay != null && minimumDurationPerDay.isNegative()) {
+            throw new IllegalArgumentException("minimumDurationPerDay must be a positive number.");
+        }
+        if(duration.isNegative()) {
+            throw new IllegalArgumentException("duration must be a positive number.");
+        }
         LocalDateTime endDateTime = startDateTime;
         boolean firstDay = true;
         while (!duration.isZero()) {
