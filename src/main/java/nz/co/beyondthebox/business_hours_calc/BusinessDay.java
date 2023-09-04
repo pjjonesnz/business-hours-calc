@@ -4,9 +4,10 @@ import java.time.Duration;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 public class BusinessDay {
-    private final List<BusinessShift> shifts = new ArrayList<>();
+    private final TreeSet<BusinessShift> shifts = new TreeSet<>();
 
     private Duration businessDayLength = Duration.ZERO;
 
@@ -17,17 +18,21 @@ public class BusinessDay {
         }
     }
 
-    public List<BusinessShift> getShifts() {
+    public TreeSet<BusinessShift> getShifts() {
         return shifts;
     }
 
     public Boolean isLastShift(BusinessShift shift) {
-        return shifts.indexOf(shift) == shifts.size() - 1;
+        return shifts.last().equals(shift);
     }
 
     public Duration getBusinessDayLength() {
 
         return businessDayLength;
+    }
+
+    public List<BusinessShift> getSortedShifts() {
+        return new ArrayList<>(shifts);
     }
 
     private void addShiftToBusinessDayLength(BusinessShift shift) {
@@ -43,7 +48,7 @@ public class BusinessDay {
     }
 
     public LocalTime getFinalShiftEndTime() {
-        return shifts.get(shifts.size() - 1).getEndTime();
+        return shifts.last().getEndTime();
     }
 
     public void addShift(BusinessShift shift) {

@@ -2,9 +2,9 @@ package nz.co.beyondthebox.business_hours_calc;
 
 import java.time.LocalTime;
 
-public class BusinessShift {
-    private LocalTime startTime;
-    private LocalTime endTime;
+public class BusinessShift implements Comparable<BusinessShift>{
+    private final LocalTime startTime;
+    private final LocalTime endTime;
 
     public BusinessShift(LocalTime startTime, LocalTime endTime) {
         this.startTime = startTime;
@@ -17,5 +17,10 @@ public class BusinessShift {
 
     public LocalTime getEndTime() {
         return endTime;
+    }
+
+    @Override
+    public int compareTo(BusinessShift other) {
+        return this.startTime.compareTo(other.startTime);
     }
 }
