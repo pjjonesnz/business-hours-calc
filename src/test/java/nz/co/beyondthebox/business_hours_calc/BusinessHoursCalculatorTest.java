@@ -443,4 +443,77 @@ public class BusinessHoursCalculatorTest {
 
         assertEquals(expectedEnd, calculator.addBusinessHours(start, duration));
     }
+
+    @Test
+    public void testAddBusinessHoursHandlesUnorderedShiftsCorrectly() {
+        BusinessWeek businessWeek = new BusinessWeek();
+
+        // Adding shifts for Monday in the wrong order
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(17, 0), LocalTime.of(20, 0)),
+                new BusinessShift(LocalTime.of(9, 0), LocalTime.of(12, 0)),
+                new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
+        ));
+
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessWeek);
+
+        LocalDateTime startDateTime = LocalDateTime.of(2023, 9, 25, 9, 0); // 9:00 AM on a Monday
+        Duration durationToAdd = Duration.ofHours(8); // Adding 8 hours should result in a time on the same day
+
+        // Functionality being tested
+        LocalDateTime newTime = calculator.addBusinessHours(startDateTime, durationToAdd);
+
+        // Assuming that your calculator considers all shifts while adding time,
+        // adding 8 hours to 9:00 AM on Monday should result in 18:00 on the same Monday.
+        assertEquals(LocalDateTime.of(2023, 9, 25, 18, 0), newTime);
+    }
+
+    @Test
+    public void testAddBusinessHoursHandlesOverlappingShiftsCorrectly() {
+        BusinessWeek businessWeek = new BusinessWeek();
+
+        // Adding shifts for Monday that overlap
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(9, 0), LocalTime.of(12, 0)),
+                new BusinessShift(LocalTime.of(11, 0), LocalTime.of(15, 0)),
+                new BusinessShift(LocalTime.of(16, 0), LocalTime.of(19, 0))
+        ));
+
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessWeek);
+
+        LocalDateTime startDateTime = LocalDateTime.of(2023, 9, 25, 9, 0); // 9:00 AM on a Monday
+        Duration durationToAdd = Duration.ofHours(8); // Adding 8 hours
+
+        // Functionality being tested
+        LocalDateTime newTime = calculator.addBusinessHours(startDateTime, durationToAdd);
+
+        // Adding 8 hours to 9:00 AM on Monday should result in 6:00 PM on the same Monday.
+        assertEquals(LocalDateTime.of(2023, 9, 25, 18, 0), newTime);
+    }
+
+    @Test
+    public void testAddBusinessHoursWithVariousIssues() {
+        // Define a week with incorrect order, overlapping shifts, and shifts that span days
+        Map<DayOfWeek, BusinessDay> businessDays = new HashMap<>();
+        businessDays.put(DayOfWeek.MONDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(14, 0), LocalTime.of(18, 0)),
+                new BusinessShift(LocalTime.of(12, 0), LocalTime.of(16, 0)),
+                new BusinessShift(LocalTime.of(20, 0), LocalTime.of(2, 0))
+        ));
+        businessDays.put(DayOfWeek.TUESDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(12, 0), LocalTime.of(16, 0)),
+                new BusinessShift(LocalTime.of(10, 0), LocalTime.of(15, 0))
+        ));
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessDays);
+
+        // Test: Start from Monday 9 AM and add 16 hours
+        LocalDateTime startDateTime = LocalDateTime.of(2023, 9, 4, 9, 0); // 2023-09-04 09:00 (Monday)
+        Duration duration = Duration.ofHours(16);
+
+        LocalDateTime endDateTime = calculator.addBusinessHours(startDateTime, duration);
+
+        // Expected End Time: 2023-09-05 14:00 (Tuesday)
+        LocalDateTime expectedEndDateTime = LocalDateTime.of(2023, 9, 5, 14, 0);
+        assertEquals(expectedEndDateTime, endDateTime);
+    }
 }
