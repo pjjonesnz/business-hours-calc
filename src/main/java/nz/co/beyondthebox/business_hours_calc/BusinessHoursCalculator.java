@@ -120,32 +120,5 @@ public class BusinessHoursCalculator {
         return holidays.contains(dateTime.toLocalDate());
     }
 
-//    public static void main(String[] args) {
-//
-//
-//        long startTime = System.nanoTime(); // Get the current time in nanoseconds
-//        long iterations = 1000000;
-//
-//        LocalDateTime endDateTime = null;
-//        // Code to be benchmarked goes here
-//        BusinessHoursCalculator calculator = new BusinessHoursCalculator(BusinessWeekTemplate.DEFAULT(), BusinessHolidays.DEFAULT());
-//        for (int i = 0; i < iterations; i++) {
-//            LocalDateTime startDateTime = LocalDateTime.of(2023, 9, 1, 8, 5); // Example start date and time
-//            Duration duration = Duration.ofHours(320); // Example duration of 6 hours
-////            Duration minimumDurationPerDay = Duration.ofHours(11); // Example minimum duration per day
-//            endDateTime = calculator.addBusinessHours(startDateTime, duration);
-//        }
-//        System.out.println("End time after adding business hours: " + endDateTime);
-//
-//        long endTime = System.nanoTime(); // Get the current time again
-//        long runTime = (endTime - startTime);
-//
-//        // Convert nanoseconds to milliseconds for readability
-//        double milliseconds = runTime / 1e6;
-//        long timePerIteration = runTime / iterations;
-//
-//        System.out.println("Execution time: " + milliseconds + " milliseconds");
-//        System.out.println("Execution time per iteration: " + timePerIteration + " nanoseconds");
-//    }
 }
 
