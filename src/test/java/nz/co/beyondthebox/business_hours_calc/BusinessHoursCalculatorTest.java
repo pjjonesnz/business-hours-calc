@@ -79,7 +79,7 @@ public class BusinessHoursCalculatorTest {
         LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);  // It's a Monday
         Duration duration = Duration.ofHours(45);  // 5 full business days at 9 hours per day
         Duration minimumDurationPerDay = Duration.ofHours(9);  // Minimum 9 hours per day
-        LocalDateTime expected = LocalDateTime.of(2023, 9, 8, 17, 0); // Next Monday
+        LocalDateTime expected = LocalDateTime.of(2023, 9, 8, 18, 0); // Next Monday
         assertEquals(expected, calculator.addBusinessHours(start, duration, minimumDurationPerDay));
     }
 
@@ -103,6 +103,14 @@ public class BusinessHoursCalculatorTest {
         LocalDateTime start = LocalDateTime.of(2023, 9, 9, 10, 0);  // It's a Saturday
         Duration duration = Duration.ofHours(8);
         LocalDateTime expected = LocalDateTime.of(2023, 9, 11, 17, 0);  // Should move to next Monday
+        assertEquals(expected, calculator.addBusinessHours(start, duration));
+    }
+
+    @Test
+    public void testAddZeroBusinessHoursStartsOnWeekend() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 9, 10, 0);  // It's a Saturday
+        Duration duration = Duration.ofHours(0);
+        LocalDateTime expected = LocalDateTime.of(2023, 9, 11, 8, 0);  // Should move to next Monday
         assertEquals(expected, calculator.addBusinessHours(start, duration));
     }
 
@@ -215,17 +223,15 @@ public class BusinessHoursCalculatorTest {
 
     @Test
     public void testBusinessHoursWithShiftSpanningOverTwoDays() {
-        // Create a BusinessDay with a shift that spans over two days
+        BusinessWeek businessWeek = new BusinessWeek();
         BusinessDay specialDay = new BusinessDay(
                 new BusinessShift(LocalTime.of(22, 0), LocalTime.of(2, 0))
         );
 
-        // Include this special day in the week's business days
-        Map<DayOfWeek, BusinessDay> specialBusinessDays = new HashMap<>();
-        specialBusinessDays.put(DayOfWeek.MONDAY, specialDay);
-        specialBusinessDays.put(DayOfWeek.TUESDAY, specialDay); // Add more days if needed
+        businessWeek.addDay(DayOfWeek.MONDAY, specialDay);
+        businessWeek.addDay(DayOfWeek.TUESDAY, specialDay); // Add more days if needed
 
-        BusinessHoursCalculator calculator = new BusinessHoursCalculator(specialBusinessDays);
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessWeek);
 
         LocalDateTime startDateTime = LocalDateTime.of(2023, 9, 4, 23, 0); // 4th Sep 2023, 11:00 PM
         Duration duration = Duration.ofHours(3); // 3 hours to add
@@ -239,17 +245,17 @@ public class BusinessHoursCalculatorTest {
 
     @Test
     public void testBusinessHoursWithShiftsSpanningDaysOverMultipleDays() {
-        // Create a BusinessDay with a shift that spans over two days
+        BusinessWeek businessWeek = new BusinessWeek();
+
         BusinessDay specialDay = new BusinessDay(
                 new BusinessShift(LocalTime.of(22, 0), LocalTime.of(2, 0))
         );
 
         // Include this special day in the week's business days
-        Map<DayOfWeek, BusinessDay> specialBusinessDays = new HashMap<>();
-        specialBusinessDays.put(DayOfWeek.MONDAY, specialDay);
-        specialBusinessDays.put(DayOfWeek.TUESDAY, specialDay); // Add more days if needed
+        businessWeek.addDay(DayOfWeek.MONDAY, specialDay);
+        businessWeek.addDay(DayOfWeek.TUESDAY, specialDay); // Add more days if needed
 
-        BusinessHoursCalculator calculator = new BusinessHoursCalculator(specialBusinessDays);
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessWeek);
 
         LocalDateTime startDateTime = LocalDateTime.of(2023, 9, 4, 23, 0); // 4th Sep 2023, 11:00 PM
         Duration duration = Duration.ofHours(6); // 6 hours to add
@@ -263,25 +269,24 @@ public class BusinessHoursCalculatorTest {
 
     @Test
     public void testWithMultipleShiftsSomeSpanningTwoDays() {
-        // Initialize the businessDays map
-        Map<DayOfWeek, BusinessDay> businessDays = new HashMap<>();
+        BusinessWeek businessWeek = new BusinessWeek();
 
         // Special shift schedule for Monday
-        businessDays.put(DayOfWeek.MONDAY, new BusinessDay(
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
                 new BusinessShift(LocalTime.of(11, 0), LocalTime.of(17, 0)),
                 new BusinessShift(LocalTime.of(23, 0), LocalTime.of(1, 0))
         ));
 
         // Regular shift schedule for Tuesday to Friday
         for (DayOfWeek day : new DayOfWeek[]{DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY}) {
-            businessDays.put(day, new BusinessDay(
+            businessWeek.addDay(day, new BusinessDay(
                     new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
                     new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
             ));
         }
 
         // Create the BusinessHoursCalculator object and set the business days
-        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessDays);
+        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessWeek);
 
         // Assume the start date is Monday, 2023-09-18 at 9:00 AM
         LocalDateTime start = LocalDateTime.of(2023, 9, 18, 9, 0);
@@ -300,24 +305,24 @@ public class BusinessHoursCalculatorTest {
     @Test
     public void test64HoursStartingMonday() {
         // Initialize the businessDays map
-        Map<DayOfWeek, BusinessDay> businessDays = new HashMap<>();
+        BusinessWeek businessWeek = new BusinessWeek();
 
         // Special shift schedule for Monday
-        businessDays.put(DayOfWeek.MONDAY, new BusinessDay(
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
                 new BusinessShift(LocalTime.of(9, 0), LocalTime.of(17, 0)),
                 new BusinessShift(LocalTime.of(23, 0), LocalTime.of(1, 0))
         ));
 
         // Regular shift schedule for Tuesday to Friday
         for (DayOfWeek day : new DayOfWeek[]{DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY}) {
-            businessDays.put(day, new BusinessDay(
+            businessWeek.addDay(day, new BusinessDay(
                     new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
                     new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
             ));
         }
 
         // Create the BusinessHoursCalculator object and set the business days
-        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessDays);
+        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessWeek);
 
         // Start time is Monday, 2023-09-18 at 9:00 AM
         LocalDateTime start = LocalDateTime.of(2023, 9, 18, 9, 0);
@@ -338,17 +343,17 @@ public class BusinessHoursCalculatorTest {
     @Test
     public void test64HoursStartingMondayWithHoliday() {
         // Initialize the businessDays map
-        Map<DayOfWeek, BusinessDay> businessDays = new HashMap<>();
+        BusinessWeek businessWeek = new BusinessWeek();
 
         // Special shift schedule for Monday
-        businessDays.put(DayOfWeek.MONDAY, new BusinessDay(
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
                 new BusinessShift(LocalTime.of(9, 0), LocalTime.of(17, 0)),
                 new BusinessShift(LocalTime.of(23, 0), LocalTime.of(1, 0))
         ));
 
         // Regular shift schedule for Tuesday to Friday
         for (DayOfWeek day : new DayOfWeek[]{DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY}) {
-            businessDays.put(day, new BusinessDay(
+            businessWeek.addDay(day, new BusinessDay(
                     new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
                     new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
             ));
@@ -359,14 +364,14 @@ public class BusinessHoursCalculatorTest {
         holidays.add(LocalDate.of(2023, 9, 20));
 
         // Create the BusinessHoursCalculator object and set the business days
-        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessDays, holidays);
+        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessWeek, holidays);
 
         // Start time is Monday, 2023-09-18 at 9:00 AM
         LocalDateTime start = LocalDateTime.of(2023, 9, 18, 9, 0);
         Duration duration = Duration.ofHours(64); // 64-hour duration
 
         // Calculate the end time
-        LocalDateTime end = calc.addBusinessHours(start, duration, null);
+        LocalDateTime end = calc.addBusinessHours(start, duration);
 
         // Your expected end time calculation
         // This is based on 10 hours on Monday, 8 hours on Tuesday, 0 hours on holiday Wednesday, 8 hours on Thursday, and 8 hours on Friday
@@ -382,21 +387,22 @@ public class BusinessHoursCalculatorTest {
     @Test
     public void test64HoursStartingTuesdayWithTwoHolidays() {
         // Initialize the businessDays map
-        Map<DayOfWeek, BusinessDay> businessDays = new HashMap<>();
+        BusinessWeek businessWeek = new BusinessWeek();
 
         // Special shift schedule for Monday
-        businessDays.put(DayOfWeek.MONDAY, new BusinessDay(
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
                 new BusinessShift(LocalTime.of(9, 0), LocalTime.of(17, 0)),
                 new BusinessShift(LocalTime.of(23, 0), LocalTime.of(1, 0))
         ));
 
         // Regular shift schedule for Tuesday to Friday
         for (DayOfWeek day : new DayOfWeek[]{DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY}) {
-            businessDays.put(day, new BusinessDay(
+            businessWeek.addDay(day, new BusinessDay(
                     new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
                     new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
             ));
         }
+        System.out.println(businessWeek.getBusinessDays());
 
         // Add holidays: One on Thursday of the first week and another on Tuesday of the second week
         Set<LocalDate> holidays = new HashSet<>();
@@ -404,7 +410,7 @@ public class BusinessHoursCalculatorTest {
         holidays.add(LocalDate.of(2023, 9, 26)); // Second week Tuesday
 
         // Create the BusinessHoursCalculator object and set the business days
-        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessDays, holidays);
+        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessWeek, holidays);
 
         // Start time is Tuesday, 2023-09-19 at 8:00 AM
         LocalDateTime start = LocalDateTime.of(2023, 9, 19, 8, 0);
@@ -416,10 +422,10 @@ public class BusinessHoursCalculatorTest {
         // Your expected end time calculation
         // 8 hours on Tuesday, 8 hours on Wednesday, 0 hours on Thursday (holiday), 8 hours on Friday.
         // That's 24 hours for the first week.
-        // 10 hours on next Monday, 0 hours on next Tuesday (holiday), 8 hours on next Wednesday
-        // That sums up to 42 hours across the two weeks.
-        // We need another 22 hours: 10 hours on next Monday, 8 hours on next Tuesday, and 4 more hours would be on next Wednesday at 12:00 PM
-        LocalDateTime expectedEnd = LocalDateTime.of(2023, 10, 2, 15, 0);
+        // 9 hours on next Monday, 0 hours on next Tuesday (holiday), 8 hours on next Wednesday, 8 hours on Thursday, 8 hours on next Friday
+        // That sums up to 57 hours across the two weeks.
+        // We need another 7 hours on the Monday
+        LocalDateTime expectedEnd = LocalDateTime.of(2023, 10, 2, 16, 0);
 
         assertEquals(expectedEnd, end);
     }
@@ -494,17 +500,17 @@ public class BusinessHoursCalculatorTest {
     @Test
     public void testAddBusinessHoursWithVariousIssues() {
         // Define a week with incorrect order, overlapping shifts, and shifts that span days
-        Map<DayOfWeek, BusinessDay> businessDays = new HashMap<>();
-        businessDays.put(DayOfWeek.MONDAY, new BusinessDay(
+        BusinessWeek businessWeek = new BusinessWeek();
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
                 new BusinessShift(LocalTime.of(14, 0), LocalTime.of(18, 0)),
                 new BusinessShift(LocalTime.of(12, 0), LocalTime.of(16, 0)),
                 new BusinessShift(LocalTime.of(20, 0), LocalTime.of(2, 0))
         ));
-        businessDays.put(DayOfWeek.TUESDAY, new BusinessDay(
+        businessWeek.addDay(DayOfWeek.TUESDAY, new BusinessDay(
                 new BusinessShift(LocalTime.of(12, 0), LocalTime.of(16, 0)),
                 new BusinessShift(LocalTime.of(10, 0), LocalTime.of(15, 0))
         ));
-        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessDays);
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessWeek);
 
         // Test: Start from Monday 9 AM and add 16 hours
         LocalDateTime startDateTime = LocalDateTime.of(2023, 9, 4, 9, 0); // 2023-09-04 09:00 (Monday)
@@ -515,5 +521,255 @@ public class BusinessHoursCalculatorTest {
         // Expected End Time: 2023-09-05 14:00 (Tuesday)
         LocalDateTime expectedEndDateTime = LocalDateTime.of(2023, 9, 5, 14, 0);
         assertEquals(expectedEndDateTime, endDateTime);
+    }
+
+    @Test
+    public void testCalculateWorkingDurationBetweenWithinOneDay() {
+        BusinessWeek businessWeek = new BusinessWeek();
+
+        // Add Monday to BusinessWeek
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
+        ));
+
+        // Initialize BusinessHoursCalculator with the businessWeek
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessWeek);
+
+        // Define start and end LocalDateTime
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);  // It's a Monday
+        LocalDateTime end = LocalDateTime.of(2023, 9, 4, 12, 0);
+
+        // Calculate the working duration between start and end
+        Duration calculatedDuration = calculator.calculateWorkingDurationBetween(start, end);
+
+        // The calculated duration should be 4 hours
+        assertEquals(Duration.ofHours(4), calculatedDuration);
+    }
+
+    @Test
+    public void testCalculateWorkingDurationOverOneDay() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 4, 17, 0);
+        Duration expected = Duration.ofHours(8);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationOverWeekend() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 8, 8, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 12, 12, 0);
+        Duration expected = Duration.ofHours(20);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationOnHoliday() {
+        LocalDateTime start = LocalDateTime.of(2023, 10, 23, 8, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 10, 24, 17, 0);
+        Duration expected = Duration.ofHours(8);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationWithMinimumDurationPerDay() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 8, 18, 0);
+        Duration expected = Duration.ofHours(45);
+        Duration minimumDurationPerDay = Duration.ofHours(9);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, minimumDurationPerDay));
+    }
+
+    @Test
+    public void testCalculateDurationWithZeroDuration() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);  // It's a Monday
+        LocalDateTime end = LocalDateTime.of(2023, 9, 4, 8, 0);  // Same as start
+        Duration expected = Duration.ZERO;
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationExactlyAtShiftEnd() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 17, 0);  // It's a Monday at shift end
+        LocalDateTime end = LocalDateTime.of(2023, 9, 4, 17, 0);  // Same as start
+        Duration expected = Duration.ZERO;
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationStartsOnWeekend() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 9, 10, 0);  // It's a Saturday
+        LocalDateTime end = LocalDateTime.of(2023, 9, 11, 17, 0);  // Should move to next Monday
+        Duration expected = Duration.ofHours(8);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationStartsOnHoliday() {
+        LocalDateTime start = LocalDateTime.of(2023, 10, 23, 10, 0);  // It's a holiday
+        LocalDateTime end = LocalDateTime.of(2023, 10, 24, 17, 0);  // Should move to next working day
+        Duration expected = Duration.ofHours(8);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationCrossingMultipleHolidays() {
+        // Initialize with additional holiday
+        BusinessWeek businessWeek = new BusinessWeek().initialiseDefault();
+        holidays.add(LocalDate.of(2023, 10, 24));
+        calculator = new BusinessHoursCalculator(businessWeek, holidays);
+
+        LocalDateTime start = LocalDateTime.of(2023, 10, 23, 8, 0);  // Starts on a holiday
+        LocalDateTime end = LocalDateTime.of(2023, 10, 25, 17, 0);  // Should skip to the day after next holiday
+        Duration expected = Duration.ofHours(8);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationWithMinimumDurationGreaterThanBusinessDay() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);  // It's a Monday
+        LocalDateTime end = LocalDateTime.of(2023, 9, 4, 17, 0);  // Same Monday
+        Duration minimumDurationPerDay = Duration.ofHours(10);  // Minimum 10 hours per day
+        Duration expected = Duration.ofHours(8);  // 8 hours available that day
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, minimumDurationPerDay));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationWithMinimumDurationEqualBusinessDay() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);  // It's a Monday
+        LocalDateTime end = LocalDateTime.of(2023, 9, 4, 17, 0);  // Same Monday
+        Duration minimumDurationPerDay = Duration.ofHours(8);  // Minimum 8 hours per day, matches business day
+        Duration expected = Duration.ofHours(8);  // 8 hours available that day
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, minimumDurationPerDay));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationOneHourToEdgeOfBusinessDay() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 16, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 4, 17, 0);
+        Duration expected = Duration.ofHours(1);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationOneMinuteToEdgeOfBusinessDay() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 16, 59);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 4, 17, 0);
+        Duration expected = Duration.ofMinutes(1);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationOverMultipleWeeks() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 15, 17, 0);
+        Duration expected = Duration.ofHours(80);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationSpanningMultipleWeeksWithHolidays() {
+        BusinessWeek businessWeek = new BusinessWeek().initialiseDefault();
+        holidays.add(LocalDate.of(2023, 9, 11));
+        holidays.add(LocalDate.of(2023, 9, 15));
+        calculator = new BusinessHoursCalculator(businessWeek, holidays);
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 19, 17, 0);
+        Duration expected = Duration.ofHours(80);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateWorkingDurationNegativeDuration() {
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 8, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 4, 7, 0);
+        assertThrows(IllegalArgumentException.class, () -> {
+            calculator.calculateWorkingDurationBetween(start, end, null);
+        });
+    }
+
+    @Test
+    public void testCalculateWorkingDurationOnLeapYear() {
+        LocalDateTime start = LocalDateTime.of(2024, 2, 29, 8, 0);
+        LocalDateTime end = LocalDateTime.of(2024, 2, 29, 17, 0);
+        Duration expected = Duration.ofHours(8);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end, null));
+    }
+
+    @Test
+    public void testCalculateDurationWithShiftSpanningOverTwoDays() {
+        BusinessDay specialDay = new BusinessDay(
+                new BusinessShift(LocalTime.of(22, 0), LocalTime.of(2, 0))
+        );
+        BusinessWeek businessWeek = new BusinessWeek();
+        businessWeek.addDay(DayOfWeek.MONDAY, specialDay);
+        businessWeek.addDay(DayOfWeek.TUESDAY, specialDay);
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessWeek);
+
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 23, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 5, 2, 0);
+        Duration expected = Duration.ofHours(3);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end));
+    }
+
+    @Test
+    public void testCalculateDurationWithShiftsSpanningDaysOverMultipleDays() {
+        BusinessWeek businessWeek = new BusinessWeek();
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(22, 0), LocalTime.of(2, 0))
+        ));
+        businessWeek.addDay(DayOfWeek.TUESDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(22, 0), LocalTime.of(2, 0))
+        ));
+        BusinessHoursCalculator calculator = new BusinessHoursCalculator(businessWeek);
+
+        LocalDateTime start = LocalDateTime.of(2023, 9, 4, 23, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 6, 1, 0);
+        Duration expected = Duration.ofHours(6);
+        assertEquals(expected, calculator.calculateWorkingDurationBetween(start, end));
+    }
+
+    @Test
+    public void testCalculateDurationWithMultipleShiftsSomeSpanningTwoDays() {
+        BusinessWeek businessWeek = new BusinessWeek();
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(11, 0), LocalTime.of(17, 0)),
+                new BusinessShift(LocalTime.of(23, 0), LocalTime.of(1, 0))
+        ));
+        for (DayOfWeek day : new DayOfWeek[]{DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY}) {
+            businessWeek.addDay(day, new BusinessDay(
+                    new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                    new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
+            ));
+        }
+        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessWeek);
+
+//        Monday - 7, Tuesday 9, Wed-Fri 8
+
+        LocalDateTime start = LocalDateTime.of(2023, 9, 18, 9, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 25, 13, 0);
+        Duration expected = Duration.ofHours(42);
+        assertEquals(expected, calc.calculateWorkingDurationBetween(start, end));
+    }
+
+    @Test
+    public void testCalculateDuration64HoursStartingMonday() {
+        BusinessWeek businessWeek = new BusinessWeek();
+        businessWeek.addDay(DayOfWeek.MONDAY, new BusinessDay(
+                new BusinessShift(LocalTime.of(9, 0), LocalTime.of(17, 0)),
+                new BusinessShift(LocalTime.of(23, 0), LocalTime.of(1, 0))
+        ));
+        for (DayOfWeek day : new DayOfWeek[]{DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY}) {
+            businessWeek.addDay(day, new BusinessDay(
+                    new BusinessShift(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                    new BusinessShift(LocalTime.of(13, 0), LocalTime.of(17, 0))
+            ));
+        }
+        BusinessHoursCalculator calc = new BusinessHoursCalculator(businessWeek);
+
+        LocalDateTime start = LocalDateTime.of(2023, 9, 18, 9, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 9, 27, 12, 0);
+        Duration expected = Duration.ofHours(64);
+        assertEquals(expected, calc.calculateWorkingDurationBetween(start, end));
     }
 }

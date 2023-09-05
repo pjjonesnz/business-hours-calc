@@ -39,12 +39,15 @@ public class BusinessHoursCalculator {
         }
         LocalDateTime endDateTime = startDateTime;
         boolean firstDay = true;
-        boolean crossedMidnight = false;
-        while (!duration.isZero()) {
-            crossedMidnight = false;
+        boolean finishedAtMidnight;
+        // This flag makes sure that it runs at least once to allow moving date to business day if duration passed is Zero
+        boolean firstRunAllowZero = true;
+        while (firstRunAllowZero || !duration.isZero()) {
+            finishedAtMidnight = false;
             // Check if the current day is a business day
             BusinessDay currentBusinessDay = businessDays.get(endDateTime.getDayOfWeek());
             if (currentBusinessDay != null && !isHoliday(endDateTime)) {
+                firstRunAllowZero = false;
 
                 Duration availableWorkHours = minimumDurationPerDay != null && minimumDurationPerDay.compareTo(currentBusinessDay.getBusinessDayLength()) >= 0
                         ? minimumDurationPerDay
@@ -53,11 +56,8 @@ public class BusinessHoursCalculator {
                 // Excluding the first day, skip over entire day if possible
                 if (!firstDay && duration.compareTo(availableWorkHours) > 0) {
                     duration = duration.minus(availableWorkHours);
-                } else if (!firstDay && duration.compareTo(availableWorkHours) == 0) {
-                    endDateTime = LocalDateTime.of(
-                            endDateTime.toLocalDate(), currentBusinessDay.getFinalShiftEndTime());
-                    return endDateTime;
-                } else {
+                }
+                else {
                     firstDay = false;
                     // Calculate the duration within business hours for the final day
                     for (BusinessShift shift : currentBusinessDay.getShifts()) {
@@ -71,9 +71,9 @@ public class BusinessHoursCalculator {
                                 shift.getEndTime()
                         );
 
-                        if (shift.getEndTime().isBefore(shift.getStartTime())) {
+                        if (shift.getEndTime().equals(LocalTime.MIDNIGHT)) {
                             shiftEnd = shiftEnd.plusDays(1);
-                            crossedMidnight = true;
+                            finishedAtMidnight = true;
                         }
 
                         if(endDateTime.isAfter(shiftEnd)) {
@@ -84,8 +84,6 @@ public class BusinessHoursCalculator {
                             endDateTime = shiftStart;
                         }
 
-//                        If the total shift time in a day is less than the minimum required hours
-//                        then extend the final shift into overtime
                         if (minimumDurationPerDay != null && currentBusinessDay.isLastShift(shift)) {
                             if (currentBusinessDay.getBusinessDayLength().compareTo(minimumDurationPerDay) < 0) {
                                 shiftEnd = shiftEnd.plus(minimumDurationPerDay.minus(currentBusinessDay.getBusinessDayLength()));
@@ -103,10 +101,10 @@ public class BusinessHoursCalculator {
                 }
             }
 
-            if (crossedMidnight) {
+            if (finishedAtMidnight) {
                 // Don't go back to midnight, start at the end time of the shift that crossed midnight
                 endDateTime = endDateTime.with(currentBusinessDay.getFinalShiftEndTime());
-                crossedMidnight = false;  // Reset the flag
+                finishedAtMidnight = false;  // Reset the flag
             } else {
                 // If no shifts crossed midnight, then reset the time to midnight
                 endDateTime = endDateTime.plusDays(1).with(LocalTime.of(0, 0));
@@ -117,65 +115,74 @@ public class BusinessHoursCalculator {
     }
 
     public Duration calculateWorkingDurationBetween(LocalDateTime startDateTime, LocalDateTime endDateTime) {
+        return calculateWorkingDurationBetween(startDateTime, endDateTime, null);
+    }
+
+    public Duration calculateWorkingDurationBetween(LocalDateTime startDateTime, LocalDateTime endDateTime, Duration minimumDurationPerDay) {
         if(startDateTime.isAfter(endDateTime)) {
             throw new IllegalArgumentException("startDateTime must be before endDateTime.");
         }
 
+        if (minimumDurationPerDay != null && minimumDurationPerDay.isNegative()) {
+            throw new IllegalArgumentException("minimumDurationPerDay must be a positive number.");
+        }
+
         Duration totalWorkingDuration = Duration.ZERO;
-        boolean crossedMidnight = false;
+        LocalDateTime currentDateTime = startDateTime;
+        boolean finishedAtMidnight;
+        while (currentDateTime.isBefore(endDateTime)) {
+            finishedAtMidnight = false;
+            BusinessDay currentBusinessDay = businessDays.get(currentDateTime.getDayOfWeek());
+            if (currentBusinessDay != null && !isHoliday(currentDateTime)) {
+                Duration availableWorkHours = currentBusinessDay.getBusinessDayLength();
 
-        while (startDateTime.isBefore(endDateTime)) {
-            crossedMidnight = false;
-
-            // Check if the current day is a business day
-            BusinessDay currentBusinessDay = businessDays.get(startDateTime.getDayOfWeek());
-            if (currentBusinessDay != null && !isHoliday(startDateTime)) {
                 for (BusinessShift shift : currentBusinessDay.getShifts()) {
+                    LocalDateTime shiftStart = LocalDateTime.of(currentDateTime.toLocalDate(), shift.getStartTime());
+                    LocalDateTime shiftEnd = LocalDateTime.of(currentDateTime.toLocalDate(), shift.getEndTime());
 
-                    LocalDateTime shiftStart = LocalDateTime.of(
-                            startDateTime.toLocalDate(),
-                            shift.getStartTime()
-                    );
-
-                    LocalDateTime shiftEnd = LocalDateTime.of(
-                            startDateTime.toLocalDate(),
-                            shift.getEndTime()
-                    );
-
-                    if (shift.getEndTime().isBefore(shift.getStartTime())) {
+                    if (shift.getEndTime().equals(LocalTime.MIDNIGHT)) {
                         shiftEnd = shiftEnd.plusDays(1);
-                        crossedMidnight = true;
+                        finishedAtMidnight = true;
                     }
-
-                    if (endDateTime.isBefore(shiftStart) || startDateTime.isAfter(shiftEnd)) {
+                    if(currentDateTime.isAfter(shiftEnd)) {
                         continue;
                     }
 
-                    LocalDateTime validShiftStart = startDateTime.isBefore(shiftStart) ? shiftStart : startDateTime;
-                    LocalDateTime validShiftEnd = endDateTime.isAfter(shiftEnd) ? shiftEnd : endDateTime;
+                    if (minimumDurationPerDay != null && currentBusinessDay.isLastShift(shift)) {
+                        if (currentBusinessDay.getBusinessDayLength().compareTo(minimumDurationPerDay) < 0) {
+                            shiftEnd = shiftEnd.plus(minimumDurationPerDay.minus(currentBusinessDay.getBusinessDayLength()));
+                        }
+                    }
 
-                    totalWorkingDuration = totalWorkingDuration.plus(Duration.between(validShiftStart, validShiftEnd));
+                    // Calculate duration in the overlapping time within this shift
+                    LocalDateTime effectiveStart = currentDateTime.isBefore(shiftStart) ? shiftStart : currentDateTime;
+                    LocalDateTime effectiveEnd = endDateTime.isAfter(shiftEnd) ? shiftEnd : endDateTime;
+                    Duration overlap = Duration.between(effectiveStart, effectiveEnd);
 
-                    if (endDateTime.isAfter(shiftEnd)) {
-                        startDateTime = shiftEnd;
-                    } else {
+                    // Add the overlapping time to the total working duration
+                    totalWorkingDuration = totalWorkingDuration.plus(overlap);
+
+                    // Move the current time to the end of this shift
+                    currentDateTime = shiftEnd;
+                    if(currentDateTime.equals(endDateTime) || currentDateTime.isAfter(endDateTime)) {
                         return totalWorkingDuration;
                     }
                 }
-            }
 
-            if (crossedMidnight) {
-                // Start at the end time of the shift that crossed midnight
-                startDateTime = startDateTime.with(currentBusinessDay.getFinalShiftEndTime());
-                crossedMidnight = false;
+            }
+            if (finishedAtMidnight) {
+                // Don't go back to midnight, start at the end time of the shift that crossed midnight
+                currentDateTime = currentDateTime.with(currentBusinessDay.getFinalShiftEndTime());
+                finishedAtMidnight = false;  // Reset the flag
             } else {
-                // Reset the time to midnight
-                startDateTime = startDateTime.plusDays(1).with(LocalTime.of(0, 0));
+                // If no shifts crossed midnight, then reset the time to midnight
+                currentDateTime = currentDateTime.plusDays(1).with(LocalTime.of(0, 0));
             }
         }
 
         return totalWorkingDuration;
     }
+
 
     private boolean isHoliday(LocalDateTime dateTime) {
         return holidays.contains(dateTime.toLocalDate());
