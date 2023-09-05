@@ -27,8 +27,8 @@ publishing {
             url = uri("https://maven.pkg.github.com/pjjonesnz/business-hours-calc")
 
             credentials {
-                username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
-                password = project.findProperty("gpr.token") ?: System.getenv("TOKEN")
+                username = project.property("gpr.user")
+                password = project.property("gpr.token")
             }
         }
     }
